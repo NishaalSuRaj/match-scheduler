@@ -1,10 +1,21 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useMatches } from '../hooks/useAppState';
 
-function Dashboard({ matches }) {
-  const upcomingMatches = matches.filter(m => new Date(m.date) > new Date()).length;
-  const totalMatches = matches.length;
-  const completedMatches = matches.filter(m => m.status === 'completed').length;
-  const ongoingMatches = matches.filter(m => m.status === 'ongoing').length;
+function Dashboard() {
+  const { matches, matchStats } = useMatches();
+
+  // Memoize calculated values to prevent unnecessary recalculations
+  const upcomingMatches = useMemo(() => 
+    matches.filter(m => new Date(m.date) > new Date()).length,
+    [matches]
+  );
+
+  const totalMatches = useMemo(() => matches.length, [matches]);
+
+  const recentMatches = useMemo(() => 
+    matches.slice(-5).reverse(),
+    [matches]
+  );
 
   return (
     <div className="dashboard">
@@ -19,11 +30,11 @@ function Dashboard({ matches }) {
               <span className="hero-label">Total Matches</span>
             </div>
             <div className="hero-stat">
-              <span className="hero-number">{ongoingMatches}</span>
+              <span className="hero-number">{matchStats.ongoing}</span>
               <span className="hero-label">Live Now</span>
             </div>
             <div className="hero-stat">
-              <span className="hero-number">{completedMatches}</span>
+              <span className="hero-number">{matchStats.completed}</span>
               <span className="hero-label">Completed</span>
             </div>
           </div>
@@ -49,13 +60,13 @@ function Dashboard({ matches }) {
         </div>
         <div className="stat-card stat-card-orange">
           <div className="stat-icon">🔴</div>
-          <div className="stat-number">{ongoingMatches}</div>
+          <div className="stat-number">{matchStats.ongoing}</div>
           <div className="stat-label">⚡ Live Matches</div>
           <div className="stat-description">Currently in progress</div>
         </div>
         <div className="stat-card stat-card-purple">
           <div className="stat-icon">✅</div>
-          <div className="stat-number">{completedMatches}</div>
+          <div className="stat-number">{matchStats.completed}</div>
           <div className="stat-label">🏆 Completed Matches</div>
           <div className="stat-description">Finished games</div>
         </div>
@@ -65,7 +76,7 @@ function Dashboard({ matches }) {
         <div className="recent-matches">
           <h2>📋 Recent Match Activity</h2>
           <div className="matches-timeline">
-            {matches.slice(-5).reverse().map(match => (
+            {recentMatches.map(match => (
               <div key={match.id} className="timeline-item">
                 <div className="timeline-marker">
                   <div className={`status-dot ${match.status}`}></div>

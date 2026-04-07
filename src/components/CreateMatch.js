@@ -1,40 +1,63 @@
-import React, { useState } from 'react';
+import React, { useReducer, useCallback } from 'react';
+import { useMatches, useNavigation } from '../hooks/useAppState';
 
-function CreateMatch({ onAddMatch }) {
-  const [formData, setFormData] = useState({
-    team1: '',
-    team2: '',
-    date: '',
-    time: '',
-    location: '',
-    status: 'scheduled'
-  });
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.team1 && formData.team2 && formData.date) {
-      onAddMatch(formData);
-      setFormData({
+// Form reducer for complex form state management
+const formReducer = (state, action) => {
+  switch (action.type) {
+    case 'CHANGE_FIELD':
+      return {
+        ...state,
+        [action.payload.name]: action.payload.value
+      };
+    case 'RESET':
+      return {
         team1: '',
         team2: '',
         date: '',
         time: '',
         location: '',
         status: 'scheduled'
-      });
+      };
+    default:
+      return state;
+  }
+};
+
+const initialFormState = {
+  team1: '',
+  team2: '',
+  date: '',
+  time: '',
+  location: '',
+  status: 'scheduled'
+};
+
+function CreateMatch() {
+  const [formData, dispatch] = useReducer(formReducer, initialFormState);
+  const { addMatch } = useMatches();
+  const { goToPage } = useNavigation();
+
+  // Memoized change handler
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    dispatch({
+      type: 'CHANGE_FIELD',
+      payload: { name, value }
+    });
+  }, []);
+
+  // Memoized submit handler
+  const handleSubmit = useCallback((e) => {
+    e.preventDefault();
+    if (formData.team1 && formData.team2 && formData.date) {
+      addMatch(formData);
+      dispatch({ type: 'RESET' });
       alert('Match created successfully!');
+      goToPage('matches');
     } else {
       alert('Please fill in all required fields');
     }
-  };
+  }, [formData, addMatch, goToPage]);
 
   return (
     <div className="create-match">

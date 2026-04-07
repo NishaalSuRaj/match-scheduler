@@ -1,29 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useTeams } from '../hooks/useAppState';
 
-function Teams({ onGenerateMatches, existingTeams = [] }) {
-  const [teams, setTeams] = useState(existingTeams);
+function Teams({ onGenerateMatches }) {
+  const { teams: contextTeams, setTeams: setContextTeams } = useTeams();
+  const [teams, setTeams] = useState(contextTeams);
   const [teamLogos, setTeamLogos] = useState({});
   const [teamInput, setTeamInput] = useState('');
   const [bulkInput, setBulkInput] = useState('');
   const [showBulkInput, setShowBulkInput] = useState(false);
 
-  const handleAddTeam = () => {
+  // Memoized add team handler
+  const handleAddTeam = useCallback(() => {
     if (teamInput.trim() && !teams.includes(teamInput.trim())) {
-      setTeams([...teams, teamInput.trim()]);
+      const newTeams = [...teams, teamInput.trim()];
+      setTeams(newTeams);
+      setContextTeams(newTeams);
       setTeamInput('');
     }
-  };
+  }, [teamInput, teams, setContextTeams]);
 
-  const handleRemoveTeam = (index) => {
+  // Memoized remove team handler
+  const handleRemoveTeam = useCallback((index) => {
     const teamName = teams[index];
-    setTeams(teams.filter((_, i) => i !== index));
-    // Remove logo when team is removed
+    const newTeams = teams.filter((_, i) => i !== index);
+    setTeams(newTeams);
+    setContextTeams(newTeams);
+    
     const newLogos = { ...teamLogos };
     delete newLogos[teamName];
     setTeamLogos(newLogos);
-  };
+  }, [teams, teamLogos, setContextTeams]);
 
-  const handleLogoUpload = (teamName, event) => {
+  // Memoized logo upload handler
+  const handleLogoUpload = useCallback((teamName, event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -35,9 +44,10 @@ function Teams({ onGenerateMatches, existingTeams = [] }) {
       };
       reader.readAsDataURL(file);
     }
-  };
+  }, []);
 
-  const handleBulkAddTeams = () => {
+  // Memoized bulk add handler
+  const handleBulkAddTeams = useCallback(() => {
     const newTeams = bulkInput
       .split('\n')
       .map(t => t.trim())
@@ -45,31 +55,46 @@ function Teams({ onGenerateMatches, existingTeams = [] }) {
     
     const uniqueTeams = [...new Set([...teams, ...newTeams])];
     setTeams(uniqueTeams);
+    setContextTeams(uniqueTeams);
     setBulkInput('');
     setShowBulkInput(false);
-  };
+  }, [bulkInput, teams, setContextTeams]);
 
-  const handleGenerateMatches = () => {
+  // Memoized generate matches handler
+  const handleGenerateMatches = useCallback(() => {
     if (teams.length < 2) {
       alert('Please add at least 2 teams to generate matches');
       return;
     }
     onGenerateMatches(teams);
-  };
+  }, [teams, onGenerateMatches]);
 
-  const handleClearAll = () => {
+  // Memoized clear all handler
+  const handleClearAll = useCallback(() => {
     if (window.confirm('Are you sure you want to clear all teams?')) {
       setTeams([]);
+      setContextTeams([]);
     }
-  };
+  }, [setContextTeams]);
+
+  // Memoized toggle bulk input handler
+  const handleToggleBulkInput = useCallback(() => {
+    setShowBulkInput(!showBulkInput);
+  }, [showBulkInput]);
+
+  // Memoized calculated stats
+  const stats = useMemo(() => ({
+    totalTeams: teams.length,
+    totalMatches: teams.length > 0 ? teams.length * (teams.length - 1) : 0
+  }), [teams.length]);
 
   return (
     <div className="teams-container">
       <h1>Manage Teams 🏟️</h1>
       
       <div className="teams-info">
-        <p>Total Teams: <strong>{teams.length}</strong></p>
-        <p>Total Matches (Round-Robin): <strong>{teams.length > 0 ? teams.length * (teams.length - 1) : 0}</strong></p>
+        <p>Total Teams: <strong>{stats.totalTeams}</strong></p>
+        <p>Total Matches (Round-Robin): <strong>{stats.totalMatches}</strong></p>
         <p className="info-text">Each team plays every other team at their home ground. Ready for the league fiesta!</p>
       </div>
 
@@ -92,7 +117,7 @@ function Teams({ onGenerateMatches, existingTeams = [] }) {
 
         <div className="bulk-input-section">
           <button 
-            onClick={() => setShowBulkInput(!showBulkInput)} 
+            onClick={handleToggleBulkInput}
             className="btn-toggle-bulk"
           >
             {showBulkInput ? 'Hide' : 'Show'} Bulk Add
@@ -168,7 +193,7 @@ function Teams({ onGenerateMatches, existingTeams = [] }) {
             onClick={handleGenerateMatches} 
             className="btn-generate-matches"
           >
-            🎯 Generate {teams.length * (teams.length - 1)} Round-Robin Matches
+            🎯 Generate {stats.totalMatches} Round-Robin Matches
           </button>
         </div>
       )}

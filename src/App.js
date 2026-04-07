@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import './App.css';
 import Navigation from './components/Navigation';
 import Dashboard from './components/Dashboard';
@@ -6,96 +6,79 @@ import CreateMatch from './components/CreateMatch';
 import MatchList from './components/MatchList';
 import Teams from './components/Teams';
 import Login from './components/Login';
+import { useAuth, useMatches, useTeams, useNavigation } from './hooks/useAppState';
 import { generateRoundRobinMatches, generateScheduledMatches } from './utils/matchGenerator';
 import matchesData from './data/matches.json';
 
 function App() {
-  const [matches, setMatches] = useState([]);
-  const [teams, setTeams] = useState([]);
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('auth') === 'true');
+  const { isAuthenticated, login, logout } = useAuth();
+  const { matches, setMatches } = useMatches();
+  const { setTeams } = useTeams();
+  const { currentPage, goToPage } = useNavigation();
 
-  // Generate matches dynamically instead of loading from JSON
-  useEffect(() => {
+  // Generate matches on mount using useCallback
+  const generateMatches = useCallback(() => {
     const teamsList = matchesData.teams || [];
     setTeams(teamsList);
 
-    // Generate matches with weekday/weekend scheduling
     const generatedMatches = generateScheduledMatches(teamsList, {
-      startDate: new Date('2026-04-05'), // Current date
+      startDate: new Date('2026-04-05'),
       numDays: 10,
       weekdayTime: '19:30',
       weekendTimes: ['14:30', '19:30']
     });
 
     setMatches(generatedMatches);
-  }, []);
+  }, [setMatches, setTeams]);
 
-  const handleAddMatch = (match) => {
-    setMatches([...matches, { ...match, id: Date.now() }]);
-  };
+  // Initialize on mount
+  useEffect(() => {
+    generateMatches();
+  }, [generateMatches]);
 
-  const handleDeleteMatch = (id) => {
-    setMatches(matches.filter(match => match.id !== id));
-  };
-
-  const handleEditMatch = (id, updatedMatch) => {
-    setMatches(matches.map(match => 
-      match.id === id ? { ...match, ...updatedMatch } : match
-    ));
-  };
-
-  const handleGenerateMatches = (teamList) => {
+  const handleGenerateMatches = useCallback((teamList) => {
     const generatedMatches = generateRoundRobinMatches(teamList);
     setMatches(generatedMatches.map((match, idx) => ({
       ...match,
       id: Date.now() + idx
     })));
     setTeams(teamList);
-    setCurrentPage('matches');
+    goToPage('matches');
     alert(`Generated ${generatedMatches.length} matches for ${teamList.length} teams!`);
-  };
+  }, [setMatches, setTeams, goToPage]);
 
-  const handleLogin = ({ username, password }) => {
+  const handleLogin = useCallback(({ username, password }) => {
     const validUsername = 'admin';
     const validPassword = 'password';
 
     if (username === validUsername && password === validPassword) {
-      localStorage.setItem('auth', 'true');
-      localStorage.setItem('username', username);
-      setIsAuthenticated(true);
-      setCurrentPage('dashboard');
+      login(username);
+      goToPage('dashboard');
       return true;
     }
 
     return false;
-  };
+  }, [login, goToPage]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth');
-    localStorage.removeItem('username');
-    setIsAuthenticated(false);
-    setCurrentPage('dashboard');
-  };
+  const handleLogout = useCallback(() => {
+    logout();
+    goToPage('dashboard');
+  }, [logout, goToPage]);
 
-  const renderPage = () => {
-    switch(currentPage) {
+  const renderPage = useCallback(() => {
+    switch (currentPage) {
       case 'dashboard':
         return <Dashboard matches={matches} />;
       case 'teams':
-        return <Teams onGenerateMatches={handleGenerateMatches} existingTeams={teams} />;
+        return <Teams onGenerateMatches={handleGenerateMatches} />;
       case 'create':
-        return <CreateMatch onAddMatch={handleAddMatch} />;
+        return <CreateMatch />;
       case 'matches':
-        return <MatchList 
-          matches={matches} 
-          onDelete={handleDeleteMatch}
-          onEdit={handleEditMatch}
-        />;
+        return <MatchList matches={matches} />;
       default:
         return <Dashboard matches={matches} />;
     }
-  };
+  }, [currentPage, matches, handleGenerateMatches]);
 
   if (!isAuthenticated) {
     return (
@@ -107,7 +90,12 @@ function App() {
 
   return (
     <div className="app">
-      <Navigation currentPage={currentPage} onPageChange={setCurrentPage} onLogout={handleLogout} isAuthenticated={isAuthenticated} />
+      <Navigation 
+        currentPage={currentPage} 
+        onPageChange={goToPage} 
+        onLogout={handleLogout} 
+        isAuthenticated={isAuthenticated} 
+      />
       <main className="main-content">
         {renderPage()}
       </main>

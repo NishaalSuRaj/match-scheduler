@@ -1,21 +1,54 @@
-import React, { useState } from 'react';
+import React, { useCallback, useReducer } from 'react';
+import { useAuth } from '../hooks/useAppState';
+
+// Login form reducer
+const loginReducer = (state, action) => {
+  switch (action.type) {
+    case 'SET_USERNAME':
+      return { ...state, username: action.payload };
+    case 'SET_PASSWORD':
+      return { ...state, password: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'RESET':
+      return { username: '', password: '', error: '' };
+    default:
+      return state;
+  }
+};
+
+const initialState = { username: '', password: '', error: '' };
 
 function Login({ onLogin }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [formState, dispatch] = useReducer(loginReducer, initialState);
+  const { login } = useAuth();
 
-  const handleSubmit = (event) => {
+  // Memoized field change handlers
+  const handleUsernameChange = useCallback((e) => {
+    dispatch({ type: 'SET_USERNAME', payload: e.target.value });
+  }, []);
+
+  const handlePasswordChange = useCallback((e) => {
+    dispatch({ type: 'SET_PASSWORD', payload: e.target.value });
+  }, []);
+
+  // Memoized submit handler
+  const handleSubmit = useCallback((event) => {
     event.preventDefault();
-    const success = onLogin({ username: username.trim(), password });
+    const success = onLogin({ 
+      username: formState.username.trim(), 
+      password: formState.password 
+    });
 
     if (!success) {
-      setError('Invalid credentials. Use admin / password');
+      dispatch({ type: 'SET_ERROR', payload: 'Invalid credentials. Use admin / password' });
       return;
     }
 
-    setError('');
-  };
+    dispatch({ type: 'SET_ERROR', payload: '' });
+    dispatch({ type: 'RESET' });
+    login(formState.username);
+  }, [formState, onLogin, login]);
 
   return (
     <div className="login-screen">
@@ -27,8 +60,8 @@ function Login({ onLogin }) {
           <input
             id="username"
             type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={formState.username}
+            onChange={handleUsernameChange}
             placeholder="Enter username"
             required
           />
@@ -37,13 +70,13 @@ function Login({ onLogin }) {
           <input
             id="password"
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={formState.password}
+            onChange={handlePasswordChange}
             placeholder="Enter password"
             required
           />
 
-          {error && <div className="login-error">{error}</div>}
+          {formState.error && <div className="login-error">{formState.error}</div>}
 
           <button type="submit" className="btn-login">Login and Play ⚽</button>
         </form>
